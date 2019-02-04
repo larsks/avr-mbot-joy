@@ -1,7 +1,7 @@
-PROGNAME = blink
+PROGNAME ?= blink
 
 DEVICE = atmega328p
-AVR_PORT = /dev/ttyUSB4
+AVR_PORT ?= /dev/ttyUSB4
 AVR_PROGRAMMER = arduino
 CLOCK = 16000000
 
