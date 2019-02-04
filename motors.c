@@ -43,6 +43,7 @@ int main() {
     uint8_t wait_for_echo = 0;
     uint16_t counter;
     uint8_t obstacle;
+    uint8_t max_speed = 200;
 
     char buf[40];
 
@@ -83,6 +84,11 @@ int main() {
                 } else {
                     obstacle = 0;
                     LEDPORTREG &= ~LEDPIN;
+                    if (counter < 1000) {
+                        max_speed = 127;
+                    } else { 
+                        max_speed = 200;
+                    }
                 }
                 counter = 0;
             }
@@ -128,7 +134,7 @@ int main() {
         if (dir == STOPPED) {
             l_speed = r_speed = 0;
         } else {
-            l_speed = r_speed = 127;
+            l_speed = r_speed = max_speed;
 
             if (dir == FORWARD) {
                 MOTORPORT |= MLEFTDIR;
@@ -143,7 +149,7 @@ int main() {
             if (dir != STOPPED) {
                 r_speed = 64;
             } else {
-                r_speed = l_speed = 127;
+                r_speed = l_speed = max_speed;
                 MOTORPORT &= ~MLEFTDIR;
                 MOTORPORT &= ~MRIGHTDIR;
             }
@@ -151,7 +157,7 @@ int main() {
             if (dir != STOPPED) {
                 l_speed = 64;
             } else {
-                r_speed = l_speed = 127;
+                r_speed = l_speed = max_speed;
                 MOTORPORT |= MLEFTDIR;
                 MOTORPORT |= MRIGHTDIR;
             }
