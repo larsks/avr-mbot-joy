@@ -55,10 +55,18 @@
 //! @}
 
 //! Describe motor direction
-typedef enum DIRECTION {STOPPED, FORWARD, REVERSE} DIRECTION;
+typedef enum DIRECTION {
+    STOPPED,    //!< mbot is stopped
+    FORWARD,    //!< mbot is moving forward
+    REVERSE     //!< mbot is moving in reverse
+} DIRECTION;
 
 //! Describe current turning state
-typedef enum TURN {NONE, LEFT, RIGHT} TURN;
+typedef enum TURN {
+    NONE,       //!< mbot is not turning
+    LEFT,       //!< mbot is turning left
+    RIGHT       //!< mbot is turning right
+} TURN;
 
 //! States in ultrasonic measurement state machine
 typedef enum DISTANCE_STATE {
@@ -70,30 +78,32 @@ typedef enum DISTANCE_STATE {
 
 /**
  * Configure pins and pwm.
- *
- * Set up fast PWM mode with OCR output enabled on for the motor speed
- * control pins, OC0A (PORTD6) and OC0B (PORTD5). The motor PWM frequency
- * is 967Hz.  At 16Mhz with a prescaler of clk/64, this gets us
- * 976.5625Hz, which is apparenlty "close enough" (that's
- * `16000000 / 64 / 255`, where the final `/255` is because we are using 8-bit
- * timers).  Setting `OCR0A` and `OCR0B` controls the duty cycle of the PWM
- * output.
  */
 void setup() {
-    // pwm frequency is 967Hz
-    // 16000000 / (64 * 256) = 976.5625 Hz
+    //! Set up fast PWM mode with OCR output enabled on for the motor speed
+    //! control pins, OC0A (PORTD6) and OC0B (PORTD5). The motor PWM frequency
+    //! is 967Hz.  At 16Mhz with a prescaler of clk/64, this gets us
+    //! 976.5625Hz, which is apparenlty "close enough" (that's
+    //! `16000000 / 64 / 255`, where the final `/255` is because we are using 8-bit
+    //! timers).  Setting `OCR0A` and `OCR0B` controls the duty cycle of the PWM
+    //! output.
+    //!
+    //! We need to use `TIMER0` for PWM output, since this is connected to
+    //! OC0A and OC0B, which are in turn connected to the motor pins.
+    TCCR0A = _BV(WGM00) | _BV(WGM01) |  // Enable fast PWM (WGM = 0b011)
+             _BV(COM0A1) | _BV(COM0B1); // Enable PWM output on OC0A and OC0B
 
-    // fast PWM (WGM = 0b011) with output on OC0A (PORTD6) and OC0B (PORTD5)
-    TCCR0A = _BV(WGM00) | _BV(WGM01) | _BV(COM0A1) | _BV(COM0B1);
-    // clk/64 prescaler (CS = 0b011)
+    //! Select clk/64 prescaler (CS = 0b011)
     TCCR0B = _BV(CS01)  | _BV(CS00);
 
-    // configure motor pins as outputs
+    //! Configure motor pins as outputs.
     MOTORDDR |= MLEFTDIR | MRIGHTDIR | MLEFTPWM | MRIGHTPWM;
 
-    // configure inputs
+    //! An arcade joystick has a five-pin connection (ground and one
+    //! pin for each direction). When you move the joystick in a given
+    //! direction, it connects the appopriate pin to ground. This means
+    //! we need to enable the internall pull-ups on the joystick pins.
     JOYDDR &= ~(PIN_UP | PIN_DOWN | PIN_LEFT | PIN_RIGHT);
-    // configure pullups
     JOYPORT  |= (PIN_UP | PIN_DOWN | PIN_LEFT | PIN_RIGHT);
 
     LEDDDR |= LEDPIN;
@@ -111,7 +121,7 @@ void setup() {
  *
  * In order to time the high pulse, we simply count loop iterations.
  * This means that as you make changes to the code, you may need to
- * adjust the `STOP_DISTANCE` and `SLOW_DISTANCE` settings.
+ * adjust the `#STOP_DISTANCE` and `#SLOW_DISTANCE` settings.
  */
 uint8_t measure_distance(uint16_t *distance) {
     static DISTANCE_STATE state = PING;
@@ -177,14 +187,23 @@ int main() {
     setup();
 
     while (1) {
-        /*
-         * handle obstacle detection
+        /**
+         * ## handle obstacle detection
+         *
+         * We call `measure_distance` every loop iteration. When there
+         * is a valid measurement available:
+         *
+         * - If the distance is less than or equal to `#STOP_DISTANCE`,
+         *   stop the mbot and set the `obstacle` flag.
+         * - If the distance is less than or equal to `#SLOW_DISTANCE`, 
+         *   reduce mbot speed to `#MED_SPEED` and clear the obstacle flag.
+         * - Otherwise, set speed to `#MAX_SPEED` and clear the obstacle flag.
          */
 
         if (measure_distance(&distance)) {
-            if (distance < STOP_DISTANCE) {
+            if (distance <= STOP_DISTANCE) {
                 obstacle = 1;
-            } else if (distance < SLOW_DISTANCE) {
+            } else if (distance <= SLOW_DISTANCE) {
                 obstacle = 0;
                 max_speed = MED_SPEED;
             } else {
@@ -193,15 +212,17 @@ int main() {
             }
         }
 
-        // Turn on LED when we detect an obstacle
+        //! If the obstacle flag is set, turn on the built-in LED.
         if (obstacle) {
             LEDPORTREG |= LEDPIN;
         } else {
             LEDPORTREG &= ~LEDPIN;
         }
 
-        /*
-         * handle joystick
+        /**
+         * ## handle joystick
+         *
+         * Set `dir` and `turn` based on the current joystick inputs.
          */
 
         if (!(JOYPIN & PIN_UP)) {
@@ -220,13 +241,16 @@ int main() {
             turn = NONE;
         }
 
-        // stop if we've detected an obstacle
+        //! Override `dir` to `#STOPPED` if the obstacle flag is set.
         if ((dir == FORWARD) && obstacle) {
             dir = STOPPED;
         }
 
-        /*
-         * control motors
+        /**
+         * ## control motors
+         *
+         * If mbot state is `#STOPPED`, set motor speed to 0. Otherwise, set
+         * motor speed and direction based on the current value of `dir`.
          */
 
         if (dir == STOPPED) {
@@ -243,6 +267,13 @@ int main() {
             }
         }
 
+        /**
+         * Next, handle turns. If the mbot is in motion, we want both
+         * motors to continue to run in the same direction, so reduce
+         * the speed on the turning side by 1/2. If the mbot is
+         * stopped, run the turning side motor in reverse and the
+         * opposite side forward.
+         */
         if (turn == RIGHT) {
             if (dir != STOPPED) {
                 r_speed /= 2;
@@ -261,6 +292,8 @@ int main() {
             }
         }
 
+        //! Apply current `l_speed` and `r_speed` values to `OCR*`
+        //! registers.
         MLEFTOCR = l_speed;
         MRIGHTOCR = r_speed;
     }
