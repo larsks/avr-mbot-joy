@@ -15,8 +15,7 @@ CFLAGS = -mmcu=$(DEVICE) -DF_CPU=$(CLOCK) $(DEBUGFLAGS)
 AVRDUDE = avrdude $(PORT) -p $(DEVICE) -c $(AVR_PROGRAMMER)
 
 OBJS = \
-	   $(PROGNAME).o \
-	   serial.o
+	   $(PROGNAME).o
 
 all: $(PROGNAME).hex
 

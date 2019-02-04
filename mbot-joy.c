@@ -132,7 +132,6 @@ int main() {
     char      buf[40];
 
     setup();
-    serial_begin();
 
     while (1) {
         /*
