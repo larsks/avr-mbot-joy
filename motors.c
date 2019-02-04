@@ -13,7 +13,7 @@
 #define USDDR (DDRC)
 #define USPORTREG (PORTC)
 #define USPINREG (PINC)
-#define USPIN (PORTC1)
+#define USPIN (1<<PORTC1)
 #define USPCINT (PCINT8)
 
 #define MOTORDDR (DDRD)
@@ -41,8 +41,9 @@ int main() {
     TURN turn = NONE;
     uint8_t r_speed = 0, l_speed = 0;
     uint8_t wait_for_echo = 0;
-
     uint16_t counter;
+    uint8_t obstacle;
+
     char buf[40];
 
     serial_begin();
@@ -69,18 +70,24 @@ int main() {
 
         if (wait_for_echo == 1) {
             if (USPINREG & USPIN) {
-                sprintf(buf, "went high: %d", counter);
-                serial_println(buf);
-                LEDPORTREG |= LEDPIN;
                 wait_for_echo = 2;
             }
         } else if (wait_for_echo == 2) {
             if ((USPINREG & USPIN) == 0) {
-                sprintf(buf, "went low: %d", counter);
+                sprintf(buf, "distance: %u", counter);
                 serial_println(buf);
-                LEDPORTREG &= ~(LEDPIN);
-                wait_for_echo = 0;
+                wait_for_echo = 3;
+                if (counter < 400) {
+                    obstacle = 1;
+                    LEDPORTREG |= LEDPIN;
+                } else {
+                    obstacle = 0;
+                    LEDPORTREG &= ~LEDPIN;
+                }
+                counter = 0;
             }
+        } else if (wait_for_echo == 3) {
+            if (counter > 500) wait_for_echo = 0;
         } else {
             serial_println("send ping");
             counter = 0;
@@ -112,6 +119,10 @@ int main() {
             turn = RIGHT;
         } else {
             turn = NONE;
+        }
+
+        if ((dir == FORWARD) && obstacle) {
+            dir = STOPPED;
         }
 
         if (dir == STOPPED) {
