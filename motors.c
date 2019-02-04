@@ -1,11 +1,20 @@
+#include <stdio.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
-#define LEDDDR DDRB
-#define LEDPORTREG PORTB
-#define LEDPINREG PINB
+#include "serial.h"
+
+#define LEDDDR (DDRB)
+#define LEDPORTREG (PORTB)
+#define LEDPINREG (PINB)
 #define LEDPIN (1<<PORTB5)
+
+#define USDDR (DDRC)
+#define USPORTREG (PORTC)
+#define USPINREG (PINC)
+#define USPIN (PORTC1)
+#define USPCINT (PCINT8)
 
 #define MOTORDDR (DDRD)
 #define MOTORPORT (PORTD)
@@ -24,29 +33,71 @@
 #define PIN_DOWN (1<<PORTB3)
 #define PIN_UP (1<<PORTB4)
 
-typedef enum DIRECTION {FORWARD, REVERSE, STOPPED} DIRECTION;
-typedef enum TURN {LEFT, RIGHT, NONE} TURN;
+typedef enum DIRECTION {STOPPED, FORWARD, REVERSE} DIRECTION;
+typedef enum TURN {NONE, LEFT, RIGHT} TURN;
 
 int main() {
     DIRECTION dir = STOPPED;
     TURN turn = NONE;
     uint8_t r_speed = 0, l_speed = 0;
+    uint8_t wait_for_echo = 0;
+
+    uint16_t counter;
+    char buf[40];
+
+    serial_begin();
 
     // pwm frequency is 967Hz
     // 16000000 / (64 * 256) = 976.5625 Hz
-    TCCR0A = _BV(WGM00) | _BV(WGM01) | _BV(COM0A1) | _BV(COM0B1);// Fast PWM (WGM = 0b0101)
+
+    // Fast PWM (WGM = 0b0101) with output on 
+    TCCR0A = _BV(WGM00) | _BV(WGM01) | _BV(COM0A1) | _BV(COM0B1);
     TCCR0B = _BV(CS01) | _BV(CS00);                 // clk/64 prescaler (CS = 0b011)
 
     // configure motor pins as outputs
-    DDRD |= MLEFTDIR | MRIGHTDIR | MLEFTPWM | MRIGHTPWM;
-//    MOTORPORT = MLEFTDIR | MRIGHTDIR;
+    MOTORDDR |= MLEFTDIR | MRIGHTDIR | MLEFTPWM | MRIGHTPWM;
 
     // configure inputs
     JOYDDR &= ~(PIN_UP|PIN_DOWN|PIN_LEFT|PIN_RIGHT);
     // configure pullups
     JOYPORT |= (PIN_UP|PIN_DOWN|PIN_LEFT|PIN_RIGHT);
 
+    LEDDDR |= LEDPIN;
+
     while (1) {
+        counter++;
+
+        if (wait_for_echo == 1) {
+            if (USPINREG & USPIN) {
+                sprintf(buf, "went high: %d", counter);
+                serial_println(buf);
+                LEDPORTREG |= LEDPIN;
+                wait_for_echo = 2;
+            }
+        } else if (wait_for_echo == 2) {
+            if ((USPINREG & USPIN) == 0) {
+                sprintf(buf, "went low: %d", counter);
+                serial_println(buf);
+                LEDPORTREG &= ~(LEDPIN);
+                wait_for_echo = 0;
+            }
+        } else {
+            serial_println("send ping");
+            counter = 0;
+            USDDR |= USPIN;         // configure ultrasonic sensor pin as output
+            USPORTREG &= ~(USPIN);  // set low
+            _delay_us(2);
+            USPORTREG |= USPIN;     // set high
+            _delay_us(10);
+            USPORTREG &= ~(USPIN);  // set low
+            USDDR &= ~(USPIN);      // configure us sensor pin as input
+            wait_for_echo = 1;
+        }
+
+        /*
+         * handle joystick
+         */
+
         if (!(JOYPIN & PIN_UP)) {
             dir = FORWARD;
         } else if (!(JOYPIN & PIN_DOWN)) {
@@ -98,5 +149,4 @@ int main() {
         MLEFTOCR = l_speed;
         MRIGHTOCR = r_speed;
     }
-        
 }
