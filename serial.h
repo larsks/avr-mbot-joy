@@ -1,3 +1,8 @@
+/**
+ * \file serial.h
+ *
+ * Simple interface to avr-libc UART functionality
+ */
 #ifndef _serial_h
 #define _serial_h
 
