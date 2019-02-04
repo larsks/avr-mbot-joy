@@ -8,6 +8,7 @@ CLOCK          ?= 16000000
 PORT = -P $(AVR_PORT) $(if $(AVR_SPEED), -b $(AVR_SPEED))
 
 OBJDUMP    ?= avr-objdump
+OBJCOPY    ?= avr-objcopy
 DEBUGFLAGS ?= -Os
 CC         = avr-gcc
 CFLAGS = -mmcu=$(DEVICE) -DF_CPU=$(CLOCK) $(DEBUGFLAGS)
@@ -27,7 +28,7 @@ $(PROGNAME).elf: $(OBJS)
 
 $(PROGNAME).hex: $(PROGNAME).elf
 	rm -f $(PROGNAME).hex
-	avr-objcopy -j .text -j .data -O ihex $(PROGNAME).elf $(PROGNAME).hex
+	$(OBJCOPY) -j .text -j .data -O ihex $(PROGNAME).elf $(PROGNAME).hex
 	avr-size --format=avr --mcu=$(DEVICE) $(PROGNAME).elf
 
 flash: $(PROGNAME).hex
