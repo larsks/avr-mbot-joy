@@ -1,21 +1,24 @@
 PROGNAME ?= mbot-joy
 
-DEVICE = atmega328p
-AVR_PORT ?= /dev/ttyUSB4
-AVR_PROGRAMMER = arduino
-CLOCK = 16000000
+DEVICE         ?= atmega328p
+AVR_PORT       ?= /dev/ttyUSB4
+AVR_PROGRAMMER ?= arduino
+CLOCK          ?= 16000000
 
 PORT = -P $(AVR_PORT) $(if $(AVR_SPEED), -b $(AVR_SPEED))
 
-DEBUGFLAGS = -Os
-CC = avr-gcc
-OBJDUMP = avr-objdump
+OBJDUMP    ?= avr-objdump
+DEBUGFLAGS ?= -Os
+CC         = avr-gcc
 CFLAGS = -mmcu=$(DEVICE) -DF_CPU=$(CLOCK) $(DEBUGFLAGS)
 
 AVRDUDE = avrdude $(PORT) -p $(DEVICE) -c $(AVR_PROGRAMMER)
 
 OBJS = \
 	   $(PROGNAME).o
+
+%.s: %.c
+	$(CC) $(CFLAGS) -o $@ -S $<
 
 all: $(PROGNAME).hex
 
