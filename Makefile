@@ -1,4 +1,4 @@
-PROGNAME ?= blink
+PROGNAME ?= mbot-joy
 
 DEVICE = atmega328p
 AVR_PORT ?= /dev/ttyUSB4
@@ -35,4 +35,4 @@ check:
 	$(AVRDUDE)
 
 clean:
-	rm -f $(OBJS)
+	rm -f $(OBJS) $(PROGNAME).hex $(PROGNAME).elf
